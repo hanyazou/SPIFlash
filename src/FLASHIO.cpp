@@ -241,6 +241,17 @@ uint16_t SPIFlash::_nextInt(uint16_t data) {
 #endif
 }
 
+void mydump(char* header, uint8_t *data_buffer, uint32_t size) {
+    char buf[32];
+    sprintf(buf, "%s %08x:", header, data_buffer);
+    Serial.print(buf);
+    for (uint16_t i = 0; i < 16; i++) {
+        sprintf(buf, " %02x", data_buffer[i]);
+        Serial.print(buf);
+    }
+    Serial.println();
+}
+
 //Reads/Writes next data buffer. Should be called after _beginSPI()
 void SPIFlash::_nextBuf(uint8_t opcode, uint8_t *data_buffer, uint32_t size) {
   uint8_t *_dataAddr = &(*data_buffer);
@@ -271,7 +282,31 @@ void SPIFlash::_nextBuf(uint8_t opcode, uint8_t *data_buffer, uint32_t size) {
       #ifdef ENABLEZERODMA
         spi_write(&(*data_buffer), size);
       #else
+        mydump("BEFORE", data_buffer, 16);
+        unsigned long time = micros();
+#if 0
         _spi->transfer(&data_buffer[0], size);
+#else
+        const int bs = 32;
+        uint8_t buf[bs];
+        uint16_t i;
+        for (i = 0; i + bs <= size; i += bs) {
+          memcpy(buf, &data_buffer[i], bs);
+          _spi->transfer(buf, bs);
+        }
+        if (i < size) {
+          memcpy(buf, &data_buffer[i], size - i);
+          _spi->transfer(buf, size - i);
+        }
+#endif
+        time = micros() - time;
+        mydump(" AFTER", data_buffer, 16);
+        Serial.print("transfered ");
+        Serial.print(size);
+        Serial.print(" bytes in ");
+        Serial.print(time);
+        Serial.print(" microsecs");
+        Serial.println();
       #endif
     #elif defined (ARDUINO_ARCH_AVR)
       SPI.transfer(&(*data_buffer), size);
